@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GPTs - Assistant API</title>
+    <!-- Add the Tailwind CSS CDN link -->
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <style>
+    .custom-file-upload {
+      /* Add custom styles for the file upload button here */
+      display: inline-block;
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+
+    /* Additional styles can go here */
+  </style>
+  <body class="bg-black flex flex-col h-screen">
+    <!-- Setup Screen -->
+    <div
+      id="setupScreen"
+      class="container flex flex-col mx-auto mt-10 p-4 max-w-md"
+    >
+      <h1 class="text-3xl text-white mb-4">Simple GPT Assistant</h1>
+      <p class="text-white mb-4">
+        This is a simple assistant that answers questions based on a given
+        knowledge base. You can upload a text file containing the knowledge base
+        and the bot will answer questions based on the contents of the file.
+      </p>
+      <input
+        type="text"
+        id="botNameInput"
+        class="mb-4 border border-zinc-700 bg-zinc-900 rounded-lg p-2 text-white"
+        placeholder="Name your bot"
+      />
+      <textarea
+        id="instructionsInput"
+        class="mb-4 border border-zinc-700 bg-zinc-900 rounded-lg p-2 text-white"
+        rows="3"
+        placeholder="Enter instructions..."
+      ></textarea>
+
+      <div id="fileUploadContainer" class="mb-4 flex items-center">
+        <label
+          for="fileUpload"
+          class="custom-file-upload bg-zinc-900 text-white py-2 px-4 rounded-lg cursor-pointer hover:bg-black border border-transparent hover:border-zinc-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-black hover:shadow-zinc-100"
+        >
+          Upload File
+        </label>
+        <input type="file" id="fileUpload" class="hidden" />
+        <div id="fileNames" class="text-white ml-4"></div>
+      </div>
+      <button
+        id="startChatBtn"
+        class="px-4 py-2 bg-zinc-900 text-white rounded-lg hover:bg-black border border-transparent hover:border-zinc-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-black hover:shadow-zinc-100"
+      >
+        Start Chat
+      </button>
+    </div>
+    <!-- Chat Screen (initially hidden) -->
+
+    <div
+      id="chatScreen"
+      class="hidden flex-grow container mx-auto mt-10 p-4 max-w-md flex flex-col overflow-y-auto h-full"
+    >
+      <div
+        id="chatbox"
+        class="bg-black p-4 rounded-lg shadow-md whitespace-pre-wrap overflow-y-auto h-full"
+      >
+        <!-- Chat messages will be displayed here -->
+      </div>
+      <div class="mt-4 flex">
+        <textarea
+          id="userInput"
+          class="flex-grow border border-zinc-700 bg-zinc-900 rounded-lg p-2 focus:outline-none text-white focus:ring-0 focus:ring-offset-0"
+          rows="2"
+          placeholder="Type your message..."
+        ></textarea>
+        <button
+          id="sendBtn"
+          class="ml-2 px-4 py-2 bg-zinc-900 text-white rounded-lg hover:bg-black focus:outline-none focus:ring-2 focus:ring-black"
+        >
+          Send
+        </button>
+      </div>
+    </div>
+
+    <script>
+      const socket = new WebSocket("ws://localhost:3001");
+
+      // Typewriter effect function
+      function typeWriter(text, element, speed = 20) {
+        let i = 0;
+        (function typing() {
+          if (i < text.length) {
+            element.innerHTML += text.charAt(i);
+            i++;
+            setTimeout(typing, speed);
+          }
+        })();
+      }
+
+      function showThinkingIndicator() {
+        addMessageToChat("Bot", "Thinking...", true, "thinkingMessage");
+      }
+
+      function addMessageToChat(
+        sender,
+        message,
+        isBot = false,
+        messageId = null
+      ) {
+        const chatbox = document.getElementById("chatbox");
+        let messageElement = document.createElement("div");
+        messageElement.classList.add("mb-2", "text-sm", "flex", "items-start");
+
+        let avatar = document.createElement("div");
+        avatar.classList.add("w-8", "h-8", "rounded-full", "mr-2"); // Adjusted width and height
+
+        let messageContent = document.createElement("div");
+        messageContent.classList.add(
+          "p-2",
+          "rounded-lg",
+          "text-white",
+          "bg-zinc-900",
+          "shadow-md",
+          "w-4/5",
+          "mr-2"
+        ); // Set max width to 3/4 of the chat area
+
+        if (isBot) {
+          avatar.classList.add("bg-zinc-900");
+          messageElement.classList.add("justify-start");
+          messageElement.appendChild(avatar);
+        } else {
+          avatar.classList.add("bg-green-500");
+          messageElement.classList.add("justify-end");
+        }
+
+        if (!isBot) {
+          messageContent.classList.add("bg-green-500", "text-white");
+          let senderElement = document.createElement("span");
+          senderElement.classList.add("font-bold", "mb-1");
+          senderElement.textContent = sender;
+          messageContent.appendChild(senderElement);
+          messageContent.appendChild(document.createElement("br"));
+          let messageText = document.createTextNode(message);
+          messageContent.appendChild(messageText);
+          messageElement.appendChild(messageContent);
+          messageElement.appendChild(avatar); // Avatar on the right for user messages
+        } else {
+          let senderElement = document.createElement("span");
+          senderElement.classList.add("font-bold", "mb-1");
+          senderElement.textContent = sender;
+          messageContent.appendChild(senderElement);
+          messageContent.appendChild(document.createElement("br"));
+          typeWriter(message, messageContent);
+          messageElement.appendChild(messageContent);
+        }
+
+        chatbox.appendChild(messageElement);
+        if (messageId) {
+          messageElement.id = messageId;
+        }
+        chatbox.scrollTop = chatbox.scrollHeight;
+        chatbox.scrollTop = chatbox.scrollHeight;
+      }
+
+      function sendMessage() {
+        const inputField = document.getElementById("userInput");
+        const message = inputField.value.trim();
+        if (message) {
+          socket.send(message);
+          addMessageToChat("You", message);
+          showThinkingIndicator(); // Show the thinking indicator
+
+          inputField.value = "";
+        }
+      }
+
+      document.getElementById("sendBtn").addEventListener("click", sendMessage);
+
+      document
+        .getElementById("userInput")
+        .addEventListener("keypress", function (event) {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            sendMessage();
+          }
+        });
+
+      socket.onmessage = function (event) {
+        try {
+          // Remove the "Thinking..." message
+          const thinkingMessage = document.getElementById("thinkingMessage");
+          if (thinkingMessage) {
+            thinkingMessage.remove();
+          }
+          if (event.data instanceof Blob) {
+            const audioURL = URL.createObjectURL(event.data);
+            const audio = new Audio(audioURL);
+            audio.onloadeddata = () => audio.play();
+          } else {
+            const messageObj = JSON.parse(event.data);
+            if (messageObj.type === "text") {
+              addMessageToChat("Bot", messageObj.data, true);
+            }
+          }
+        } catch (e) {
+          console.error("Error parsing message data:", e);
+        }
+      };
+
+      socket.onerror = function (error) {
+        console.error("WebSocket Error: " + error);
+      };
+
+      document
+        .getElementById("startChatBtn")
+        .addEventListener("click", async function () {
+          const botName =
+            document.getElementById("botNameInput").value.trim() || "QA Bot";
+          const instructions = document
+            .getElementById("instructionsInput")
+            .value.trim();
+          const fileInput = document.getElementById("fileUpload");
+
+          let fileId = null;
+          if (fileInput.files.length > 0) {
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+            formData.append("name", botName);
+            formData.append("instructions", instructions);
+
+            // Upload the file to the server
+            const response = await fetch("/uploadFile", {
+              method: "POST",
+              body: formData,
+            });
+            const data = await response.json();
+            fileId = data.fileId;
+          }
+
+          // Hide setup screen and show chat screen
+          document.getElementById("setupScreen").classList.add("hidden");
+          document.getElementById("chatScreen").classList.remove("hidden");
+
+          // Customize bot greeting with the given name
+          addMessageToChat(
+            botName,
+            "Hi, I'm " + botName + ". How can I help you?",
+            true
+          );
+        });
+      document
+        .getElementById("fileUpload")
+        .addEventListener("change", function () {
+          let fileNames = [];
+          for (let i = 0; i < this.files.length; i++) {
+            fileNames.push(this.files[i].name);
+          }
+          document.getElementById("fileNames").textContent =
+            fileNames.join(", ");
+        });
+    </script>
+  </body>
+</html>
