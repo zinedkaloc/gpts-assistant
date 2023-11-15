@@ -27,8 +27,8 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-const PORT = 3000;
-const WS_PORT = 3001; // Separate port for WebSocket server
+const PORT = process.env.PORT || 3000;
+const WS_PORT = process.env.WS_PORT || 3001; // Separate port for WebSocket server
 const app = express();
 app.use(express.static("public"));
 
