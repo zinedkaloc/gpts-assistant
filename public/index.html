@@ -88,9 +88,7 @@
     </div>
 
     <script>
-      const socket = new WebSocket(
-        "ws://gpts-assistant-production.up.railway.app:3001"
-      );
+      const socket = new WebSocket("ws://" + window.location.host + ":3001");
 
       // Typewriter effect function
       function typeWriter(text, element, speed = 20) {
